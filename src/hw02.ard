@@ -1,44 +1,134 @@
 \import Utils
+\import hw01 (fac)
 
 -- 1. Определите полиморфный tail для списков.
 
+\func tail {A : \Type} (l : List A) : Maybe (List A) \elim l
+  | nil => nothing
+  | cons _ xs => just xs
+
 -- 2. Реализуйте любой (but choose wisely) алгоритм сортировки. Функцию сравнения можно принимать в качестве аргумента.
+
+
+
+\func le (x y : Nat) : Bool => \case (y Nat.- x) \with {
+  | 0 => false
+  | pos n => true
+  | neg n => false
+}
+
+\func insertion_sort {A : \Type} (cmp : A -> A -> Bool) (l : List A) : List A \elim l
+  | nil => nil
+  | cons x xs => \let | sorted_tail => insertion_sort cmp xs
+                 \in insert cmp x sorted_tail
+  \where {
+    \func insert {A : \Type} (cmp : A -> A -> Bool) (x : A) (xs : List A) : List A \elim xs
+      | nil => cons x nil
+      | cons y ys => if (cmp x y) (cons x (cons y ys)) (cons y (insert cmp x ys))
+  }
+
+\func test_list1 => cons 1 (cons 2 (cons 3 nil))
+\func test_list2 => cons 1 (cons 3 (cons 2 nil))
+\func test_list3 => cons 2 (cons 1 (cons 3 nil))
+\func test_list4 => cons 2 (cons 3 (cons 1 nil))
+\func test_list5 => cons 3 (cons 1 (cons 2 nil))
+\func test_list6 => cons 3 (cons 2 (cons 1 nil))
+
+\func test_sort1 : insertion_sort le test_list1 = cons 1 (cons 2 (cons 3 nil)) => idp
+\func test_sort2 : insertion_sort le test_list2 = cons 1 (cons 2 (cons 3 nil)) => idp
+\func test_sort3 : insertion_sort le test_list3 = cons 1 (cons 2 (cons 3 nil)) => idp
+\func test_sort4 : insertion_sort le test_list4 = cons 1 (cons 2 (cons 3 nil)) => idp
+\func test_sort5 : insertion_sort le test_list5 = cons 1 (cons 2 (cons 3 nil)) => idp
+\func test_sort6 : insertion_sort le test_list6 = cons 1 (cons 2 (cons 3 nil)) => idp
+
 
 -- 3. Докажите ассоциативность && и ||.
 
-\func &&-assoc (x y z : Bool) : (x && y) && z = x && (y && z) => {?}
+\func &&-assoc (x y z : Bool) : (x && y) && z = x && (y && z) \elim x
+  | true => idp
+  | false => idp
 
-\func ||-assoc (x y z : Bool) : (x || y) || z = x || (y || z) => {?}
+\func ||-assoc (x y z : Bool) : (x || y) || z = x || (y || z) \elim x
+  | true => idp
+  | false => idp
 
 -- 4. Докажите, что fac 3 равно 6.
+
+\func fac_3_=_6 : fac 3 = 6 => idp
 
 -- 5. Докажите следующие пропозициональные тавтологии (choose 2 out of 3).
 
 -- t1 : (P and Q -> R) -> P -> Q -> R
-\func t1 {P Q R : \Type} (f : \Sigma P Q -> R) (p : P) (q : Q) : R => {?}
+\func t1 {P Q R : \Type} (f : \Sigma P Q -> R) (p : P) (q : Q) : R =>
+  f (p, q)
 
 -- t2 : (P -> R) -> (Q -> R) -> P or Q -> R
-\func t2 {P Q R : \Type} (f : P -> R) (g : Q -> R) (h : Either P Q) : R => {?}
+\func t2 {P Q R : \Type} (f : P -> R) (g : Q -> R) (h : Either P Q) : R \elim h
+  | inl p => f p
+  | inr q => g q
 
 -- t3 : ((P -> Q -> R) -> P) -> (P -> R) -> R
-\func t3 {P Q R : \Type} (f : (P -> Q -> R) -> P) (g : P -> R) : R => {?}
+\func t3 {P Q R : \Type} (f : (P -> Q -> R) -> P) (g : P -> R) : R =>
+  \let | ar => \lam p (q : Q) => g p \in
+  g (f ar)
 
 -- 6. Сформулируйте и докажите следующие пропозициональные тавтологии (choose 2 out of 3).
 
 -- t4 : (P -> Q -> R) -> P and Q -> R
+\func t4 {P Q R : \Type} (f : P -> Q -> R) (g : \Sigma P Q) : R \elim g
+  | (p, q) => f p q
+
 -- t5 : (P or Q -> P and Q) -> (P -> Q) and (Q -> P)
+\func t5 {P Q R : \Type} (f : (Either P Q) -> \Sigma P Q) : \Sigma (P -> Q) (Q -> P) =>
+  \let | inl : P -> Q =>
+    \lam p => \let | (_, q) => f (inl p) \in q
+  \in
+  \let | inr : Q -> P =>
+    \lam q => \let | (p, _) => f (inr q) \in p
+  \in
+  (inl, inr)
+
 -- t6 : ((((P -> Q) -> P) -> P) -> Q) -> Q
+\func t6 {P Q R : \Type} (f : (((P -> Q) -> P) -> P) -> Q) : Q =>
+  \let Hp : ((P -> Q) -> P) -> P =>
+    \lam g => g (\lam p => f (\lam _ => p))
+  \in
+  f Hp
 
 -- 7. Докажите следующие утверждения.
 
 -- s1 : Если для любого x : Nat верно P(x), то существует x : Nat для которого P(x) верно.
-\func s1 (P : Nat -> \Type) (h : \Pi (x : Nat) -> P x) : \Sigma (x : Nat) (P x) => {?}
+\func s1 (P : Nat -> \Type) (h : \Pi (x : Nat) -> P x) : \Sigma (x : Nat) (P x) =>
+  (0, h 0)
 
 -- s2 : Если не существует x : Nat такого, что верно P(x), то P(3) не верно.
-\func s2 (P : Nat -> \Type) (h : \Sigma (x : Nat) (P x) -> Empty) : P 3 -> Empty => {?}
+\func s2 (P : Nat -> \Type) (h : \Sigma (x : Nat) (P x) -> Empty) : P 3 -> Empty => \lam p_3 =>
+  h (3, p_3)
 
 -- 8. Сформулируйте и докажите следующие утверждения.
 
--- s3 : Если для всех x : Nat верно, что P(x) влечет Q(x), и существует x : Nat для которого верно P(x), то существует x : Nat для которого верно Q(x).
+-- s3 : Если для всех x : Nat верно, что P(x) влечет Q(x), и существует x : Nat для которого верно P(x),
+-- то существует x : Nat для которого верно Q(x).
+
+\func s3 (P Q : Nat -> \Type) (h : \Pi (x : Nat) -> ((P x) -> (Q x))) (g : \Sigma (x : Nat) (P x)) : \Sigma (x : Nat) (Q x) =>
+  \let | (x, Px) => g \in
+  (x, h x Px)
 
 -- s4 : Если для всех x : Nat либо не верно P(x), либо не верно Q(x), то P(3) влечет, что Q(3) не верно.
+
+\func s4 (P Q : Nat -> \Type) (h : \Pi (x : Nat) -> (Either ((P x) -> Empty)) ((Q x) -> Empty)) : P 3 -> Q 3 -> Empty =>
+  \let h_3 => h 3 \in
+  \lam p_3 q_3 => \case h_3 \with {
+    | inl a => a p_3
+    | inr b => b q_3
+  }
+
+
+
+
+
+
+
+
+
+
