@@ -1,4 +1,5 @@
 \import Utils
+\import lect02 (+-assoc, ==)
 \import lect03 \hiding (Vec,vnil,vcons)
 \open Nat(+,*)
 
@@ -12,73 +13,194 @@
   | suc x, 0 => false
   | suc x, suc y => x < y
 
-\func lookup => {?}
+\func no_n_lt_0 (n : Nat) : T (n < 0) -> Empty =>
+  \case n \as n \return (T (n < 0) -> Empty) \with {
+  | 0 => \lam x => x
+  | suc x => \lam x => x
+}
+
+\func lookup {A : \Type} (l : List A) (i : Nat) (H : T (i < length l)) : A \elim l, i
+  | nil, i => \case no_n_lt_0 i H \with {}
+  | cons a l, 0 => a
+  | cons a l, suc i => lookup l i H
 
 -- 2. Реализуйте аналоги функции replicate для vec и Vec (эта функция создает список заданной длины, состоящий из повторений данного элемента).
 
+\func replicate_v {A : \Type} (x : A) (n : Nat) : vec A n \elim n
+  | 0 => ()
+  | suc n => (x, (replicate_v x n))
+
+\func replicate_V {A : \Type} (x : A) (n : Nat) : Vec A n \elim n
+  | 0 => vnil
+  | suc n => vcons x (replicate_V x n)
+
 -- 3. Реализуйте аналоги функции map для vec и Vec.
+
+\func map_v {A B : \Type} (P : A -> B) (n : Nat) (l : vec A n) : vec B n \elim n, l
+  | 0, _ => ()
+  | suc n, (x, xs) => (P x, map_v P n xs)
+
+\func map_V {A B : \Type} (P : A -> B) {n : Nat} (l : Vec A n) : Vec B n \elim n, l
+  | 0, vnil => vnil
+  | suc n, vcons a l => vcons (P a) (map_V P l)
 
 -- 4. Реализуйте аналоги функции zipWith для vec и Vec.
 --    Функция должна принимать вектора одинаковой длины.
 
+\func zipWith_v {A B : \Type} (n : Nat) (xs : vec A n) (ys : vec B n) : vec (\Sigma A B) n \elim n, xs, ys
+  | 0, xs, ys => ()
+  | suc n, (x, xs), (y, ys) => ((x, y), zipWith_v n xs ys)
+
+\func zipWith_V {A B : \Type} {n : Nat} (xs : Vec A n) (ys : Vec B n) : Vec (\Sigma A B) n \elim n, xs, ys
+  | 0, vnil, vnil => vnil
+  | suc n, vcons x xs, vcons y ys => vcons (x, y) (zipWith_V xs ys)
+
 -- 5. Определите конгруэнтность для функций двух аргументов через transport.
 --    Можно использовать любые функции, определенные через transport.
 
-\func pmap2 {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b' => {?}
+\func pmap2 {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b' =>
+  pmap (f a) q
+    *> {_} {_} {f a b'}
+  pmap (\lam x => f x b') p
 
 -- 6. Докажите, что transport выражается через pmap и repl и наоборот.
-
 -- repl говорит, что если у нас есть два равных типа, то у нас есть функция из одного во второй.
 -- Определите repl через transport.
 
-\func repl {A B : \Type} (p : A = B) (a : A) : B => {?}
+-- ?B ?a' = B
+-- ?B ?a = A
+-- ?B = id
+-- ?a = A
+-- ?a'= B
+
+\func id (A : \Type) => A
+
+\func repl {A B : \Type} (p : A = B) (a : A) : B =>
+  transport id p a
 
 -- Определите transport через repl и pmap.
 
-\func transport' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') (b : B a) : B a' => {?}
+\func transport' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') (b : B a) : B a' =>
+  repl (pmap B p) b
 
--- 7. Определите тип CTree A n полных бинарных деревьев высоты ровно n, которые хранят элементы только во внутренних узлах, но не в листьях.
+-- 7. Определите тип CTree A n полных бинарных деревьев высоты ровно n, которые хранят элементы
+-- только во внутренних узлах, но не в листьях.
 --    Высота листа равна 0.
 
-\data CTree (A : \Type) (n : Nat)
+\data CTree (A : \Type) (n : Nat) \elim n
+  | 0 => CLeaf
+  | suc n => CNode A (CTree A n) (CTree A n)
 
--- 8. Определите тип Tree A n бинарных деревьев высоты не больше n, которые хранят элементы только во внутренних узлах, но не в листьях.
+-- 8. Определите тип Tree A n бинарных деревьев высоты не больше n, которые хранят элементы
+-- только во внутренних узлах, но не в листьях.
 --    Высота листа равна 0.
 
-\data Tree (A : \Type) (n : Nat)
+\data Tree (A : \Type) (n : Nat) \elim n
+  | _ => Leaf
+  | suc n => Node A (Tree A n) (Tree A n)
 
 -- определите функцию, возвращающую высоту дерева.
 
-\func height {A : \Type} (n : Nat) (t : Tree A n) : Fin (suc n) => {?}
+\func max {n : Nat} (a b : Fin n) : Fin n \elim n, a, b
+  | suc n, fzero, fzero => fzero
+  | suc n, fzero, fsuc b => fsuc b
+  | suc n, fsuc a, fzero => fsuc a
+  | suc n, fsuc a, fsuc b => fsuc (max a b)
+
+\func height {A : \Type} (n : Nat) (t : Tree A n) : Fin (suc n) \elim n, t
+  | _, Leaf => fzero
+  | suc n, Node a t1 t2 => fsuc (max (height n t1) (height n t2))
+
+\func treeTest : Tree Nat 100 => Node 4 (Node 15 Leaf Leaf) (Node 404040 (Node 14 Leaf (Node 0 Leaf Leaf)) (Node 14 Leaf Leaf))
 
 -- Optional task
 -- 9. Функции Fin n -> A соответствуют спискам элементов A длины n.
 --     Функция, преобразующая Vec A n в Fin n -> A, была реализована на лекции.
 --     Реализуйте обратную функцию.
 
-\func coin {A : \Type} {n : Nat} (f : Fin n -> A) : Vec A n => {?}
+\func toFin (n : Nat) : Fin (suc n) \elim n
+  | 0 => fzero
+  | suc n => fsuc (toFin n)
+
+\func finInj {n : Nat} (m : Fin n) : Fin (suc n) \elim n, m
+  | suc n, fzero => fzero
+  | suc n, fsuc m => fsuc (finInj m)
+
+\func decrDecor {A : \Type} {n : Nat} (f : Fin (suc n) -> A) : Fin n -> A =>
+  \lam x => f (finInj x)
+
+\func coin {A : \Type} {n : Nat} (f : Fin n -> A) : Vec A n \elim n
+  | 0 => vnil
+  | suc n => vcons (f (toFin n)) (coin (decrDecor f))
+
+\func kek (a : Fin 4) : Nat
+  | fzero => 15
+  | fsuc fzero => 16
+  | fsuc (fsuc fzero) => 43
+  | fsuc (fsuc (fsuc fzero)) => 45
+  | fsuc (fsuc (fsuc (fsuc a))) => 0
+
+\func kekTest : Vec Nat 4 => coin kek
 
 -- Optional task
 -- 10. Определите тип матриц и ряд функций над ними.
 
-\func Mat (A : \Type) (n m : Nat) : \Type => {?}
+\func Mat (A : \Type) (n m : Nat) : \Type => \Pi (i : Fin n) (j : Fin m) -> A
 
 -- диагональная матрица с элементами e на диагонали и z на остальных позициях.
 
-\func diag {A : \Type} (z e : A) (n : Nat) : Mat A n n => {?}
+\func \infix 1 =? {n : Nat} (i : Fin n) {m : Nat} (j : Fin m) : Bool \elim n, i, m, j
+  | suc n, fzero, suc m, fzero => true
+  | suc n, fzero, suc m, fsuc j => false
+  | suc n, fsuc i, suc m, fzero => false
+  | suc n, fsuc i, suc m, fsuc j => i =? j
+
+\func diag {A : \Type} (z e : A) (n : Nat) : Mat A n n =>
+  \lam (i : Fin n) (j : Fin n) => if (i =? j) e z
 
 -- транспонирование матриц
 
-\func transpose {A : \Type} {n m : Nat} (M : Mat A n m) : Mat A m n => {?}
+\func transpose {A : \Type} {n m : Nat} (M : Mat A n m) : Mat A m n =>
+  \lam (j : Fin m) (i : Fin n) => M i j
 
 -- сложение матриц
 
-\func matAdd {A : \Type} (add : A -> A -> A) (n m : Nat) (M N : Mat A n m) : Mat A n m => {?}
+\func matAdd {A : \Type} (add : A -> A -> A) (n m : Nat) (M N : Mat A n m) : Mat A n m =>
+  \lam i j => (M i j) `add` (N i j)
 
 -- умножение матриц
 
+\func map {A B : \Type} (f : A -> B) (l : List A) : List B \elim l
+  | nil => nil
+  | cons a l => cons (f a) (map f l)
+
+\func foldr {A B : \Type} (f : A -> B -> B) (z : B) (l : List A) : B \elim l
+  | nil => z
+  | cons a l => f a (foldr f z l)
+
+\func ns_list (n : Nat) : List (Fin n) \elim n
+  | 0 => nil
+  | suc n => cons fzero (map fsuc (ns_list n))
+
 -- z ─ нейтральный элемент по сложению.
-\func matMul {A : \Type} (z : A) (add mul : A -> A -> A) (n m k : Nat) (M : Mat A n m) (N : Mat A m k) : Mat A n k => {?}
+\func matMul {A : \Type} (z : A) (add mul : A -> A -> A) (n m k : Nat)
+             (M : Mat A n m) (N : Mat A m k) : Mat A n k =>
+  \lam i t => foldr add z (
+      map (\lam j => (M i j) `mul` (N j t)) (ns_list m)
+  )
+
+\func matTest : Mat Nat 3 3 => matMul 0 (+) (*) 3 3 3 (diag 0 2 3) (diag 0 5 3)
+
+--\func matTestT (n m : Fin 3) : matTest n m = 100
+--  | fzero, fzero => idp
+--  | fzero, fsuc fzero => idp
+--  | fzero, fsuc (fsuc fzero) => idp
+--  | fsuc fzero, fzero => idp
+--  | fsuc fzero, fsuc fzero => idp
+--  | fsuc fzero, fsuc (fsuc fzero) => idp
+--  | fsuc (fsuc fzero), fzero => idp
+--  | fsuc (fsuc fzero), fsuc fzero => idp
+--  | fsuc (fsuc fzero), fsuc (fsuc fzero) => idp
 
 -- 11. Докажите, что reverse (reverse xs) = xs, где reverse определен через ++.
 
@@ -86,13 +208,44 @@
   | nil => nil
   | cons x xs => reverse xs ++ cons x nil
 
--- Это утверждение будет полезно для доказательства.
-\func reverse++ {A : \Type} (xs ys : List A) : reverse (xs ++ ys) = reverse ys ++ reverse xs => {?}
+\func app_nil {A : \Type} (xs : List A) : xs ++ nil = xs \elim xs
+  | nil => idp
+  | cons x xs => pmap (cons x) (app_nil xs)
 
-\func reverse-isInvolutive {A : \Type} (xs : List A) : reverse (reverse xs) = xs => {?}
+\func app_assoc {A : \Type} (xs ys zs : List A) : xs ++ ys ++ zs = xs ++ (ys ++ zs) \elim xs
+  | nil => idp
+  | cons a xs => pmap (cons a) (app_assoc xs ys zs)
+
+-- Это утверждение будет полезно для доказательства.
+\func reverse++ {A : \Type} (xs ys : List A) : reverse (xs ++ ys) = reverse ys ++ reverse xs \elim xs
+  | nil => transport (\lam xs => reverse ys = xs) (sym (app_nil (reverse ys))) idp
+  | cons a xs => transport (\lam as => reverse (xs ++ ys) ++ (cons a nil) = as)
+      (app_assoc (reverse ys) (reverse xs) (cons a nil)) (pmap (\lam x => x ++ (cons a nil)) (reverse++ xs ys))
+
+\func reverse-isInvolutive {A : \Type} (xs : List A) : reverse (reverse xs) = xs \elim xs
+  | nil => idp
+  | cons a xs => (transport (\lam ys => ys = cons a xs) (sym (reverse++ (reverse xs) (cons a nil)))
+      (pmap (cons a) (reverse-isInvolutive xs)))
 
 -- 12. Докажите дистрибутивность умножения над сложением для натуральных чисел (выберите 1 из двух вариантов).
 
-\func rdistr (n m k : Nat) : (m + k) * n = m * n + k * n => {?}
+-- (m + k) * n + (m + k) = m * n + m + (k * n + k)
+-- m * n + k * n + (m + k) = m * n + m + (k * n + k)
+-- m * n + k * n + (m + k) = m * n + (m + (k * n + k))
+-- m * n + k * n + (m + k) = m * n + (k * n + k + m)
+-- m * n + k * n + (m + k) = m * n + (k * n + (k + m))
+
+
+\func rdistr (n m k : Nat) : (m + k) * n = m * n + k * n \elim n
+  | 0 => idp
+  | suc n =>
+    transport (\lam x => x + (m + k) = m * n + m + (k * n + k)) (sym (rdistr n m k)) (
+    transport (\lam x => m * n + k * n + (m + k) = x) (sym (+-assoc (m * n) (m) (k * n + k))) (
+    transport (\lam x => m * n + k * n + (m + k) = m * n + x) (+-comm (k * n + k) m) (
+    transport (\lam x => m * n + k * n + (m + k) = m * n + x) (sym (+-assoc (k * n) k m)) (
+    transport (\lam x => m * n + k * n + (m + k) = x) (+-assoc (m * n) (k * n) (k + m)) (
+    pmap (\lam x => m * n + k * n + x) (
+    +-comm m k
+  ))))))
 
 \func ldistr (n m k : Nat) : n * (m + k) = n * m + n * k => {?}
