@@ -118,20 +118,12 @@
 --     Функция, преобразующая Vec A n в Fin n -> A, была реализована на лекции.
 --     Реализуйте обратную функцию.
 
-\func toFin (n : Nat) : Fin (suc n) \elim n
-  | 0 => fzero
-  | suc n => fsuc (toFin n)
-
-\func finInj {n : Nat} (m : Fin n) : Fin (suc n) \elim n, m
-  | suc n, fzero => fzero
-  | suc n, fsuc m => fsuc (finInj m)
-
 \func decrDecor {A : \Type} {n : Nat} (f : Fin (suc n) -> A) : Fin n -> A =>
-  \lam x => f (finInj x)
+  \lam x => f (fsuc x)
 
 \func coin {A : \Type} {n : Nat} (f : Fin n -> A) : Vec A n \elim n
   | 0 => vnil
-  | suc n => vcons (f (toFin n)) (coin (decrDecor f))
+  | suc n => vcons (f fzero) (coin (decrDecor f))
 
 \func kek (a : Fin 4) : Nat
   | fzero => 15
