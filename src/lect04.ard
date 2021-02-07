@@ -162,7 +162,7 @@
   }
 
 
-{-
+
 \func v++-assoc' {A : \Type} {n m k : Nat}
                 (xs : Vec A n) (ys : Vec A m) (zs : Vec A k)
   : (xs v++ ys) v++ zs = transport (Vec A) (+-assoc' k m n) (xs v++ (ys v++ zs)) \elim n, xs
@@ -185,7 +185,7 @@
 \func +-assoc' (n m k : Nat) : (n + m) + k = n + (m + k) \elim k
   | 0 => idp
   | suc k => pmap suc (+-assoc' n m k)
--}
+
 
 -- 4. Matching with idp
 
