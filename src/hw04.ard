@@ -128,7 +128,7 @@
   transport'' {\Sigma (x : A) (a = x)}
       (\lam x => \case x \with {
         | (a', p) => B a' p
-      }) 
+      })
       (sigma-contr (a', p)) b
 
 -- 7. Докажите, что vnil является нейтральным элементом для v++.

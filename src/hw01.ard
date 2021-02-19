@@ -98,7 +98,7 @@
 \func modtest2 : mod 9 5 = 4 => idp
 \func modtest3 : mod 10 5 = 0 => idp
 
-\func gcd (x y : Nat) => gcd' (x + y) x y
+\func gcd (x y : Nat) : Nat => gcd' (x + y) x y
   \where
     \func gcd' (fuel x y : Nat) : Nat \elim fuel
       | 0 => 0
