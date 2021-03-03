@@ -1,4 +1,8 @@
+\import Logic.Meta
+\import Meta
+\import Paths.Meta
 \import Utils
+\import lect05 (funExt)
 \import lect06 (Functor)
 \import lect07
 \open Nat(+,*)
@@ -8,24 +12,167 @@
 --    * Все элементы filter p xs удовлетворяют предикату p
 --    * Любой подсписок xs с тем же свойством является подсписком filter p xs
 
+\func filter {A : \Type} (p : A -> Bool) (xs : List A) : List A \elim xs
+  | nil => nil
+  | cons a xs => \case p a \with {
+    | true => cons a (filter p xs)
+    | false => filter p xs
+  }
+
+\data Sublist {A : \Type} (xs ys : List A) \elim xs, ys
+  | cons x xs, cons y ys => scons (x = y) (Sublist xs ys)
+  | xs, cons y ys => skip (Sublist xs ys)
+  | nil, _ => snil
+
+\func filtered-is-sublist {A : \Type} (p : A -> Bool) (xs : List A) : Sublist (filter p xs) xs \elim xs
+  | nil => snil
+  | cons a xs => mcases \with {
+    | true => scons idp (filtered-is-sublist p xs)
+    | false => skip (filtered-is-sublist p xs)
+  }
+
+\func all {A : \Type} (p : A -> Bool) (xs : List A) : \Type \elim xs
+  | nil => \Sigma
+  | cons a xs => \case p a \with {
+    | true => all p xs
+    | false => Empty
+  }
+
+\func filtered-are-correct {A : \Type} (p : A -> Bool) (xs : List A) : all p (filter p xs) \elim xs
+  | nil => ()
+  | cons a xs => \case p a \as t, idp : p a = t \with {
+    | true, Hp => rewrite Hp (rewrite Hp (filtered-are-correct p xs))
+    | false, Hp => rewrite Hp (filtered-are-correct p xs)
+  }
+
+\func all-p-sublist-is-filtered-sublist {A : \Type} (p : A -> Bool) (xs ys : List A) (Hys : Sublist xs ys)
+                                        (Hall : all p xs) : Sublist xs (filter p ys) \elim ys
+  | nil => Hys
+  | cons x s => \case xs \as t, idp : xs = t \with {
+    | nil, Heq => rewrite Heq snil
+    | cons a as, Heq => run {
+      rewrite Heq at Hys,
+      rewrite Heq at Hall,
+      rewrite Heq,
+      \let HallAs : all p as => (
+        \case p a \as t, idp : p a = t \with {
+          | true, Hkek => (rewrite Hkek at Hall) Hall
+          | false, Hkek => (rewrite Hkek at Hall) (absurd Hall)
+        }
+      ) \in
+      \case p x \as tt, idp : p x = tt \with {
+        | true, Hpeq => run {
+          rewrite Hpeq,
+          \case Hys \with {
+            | scons Hheq Hsub => scons Hheq (all-p-sublist-is-filtered-sublist p as s Hsub HallAs)
+            | skip Hsub => skip (all-p-sublist-is-filtered-sublist p (cons a as) s Hsub Hall)
+          }
+        }
+        | false, Hpeq => run {
+          rewrite Hpeq,
+          \case Hys \with {
+            | scons Hheq Hsub => (rewriteI Hheq at Hpeq) ((rewrite Hpeq at Hall) (absurd Hall))
+            | skip Hsub => all-p-sublist-is-filtered-sublist p (cons a as) s Hsub Hall
+          }
+        }
+      }
+    }
+  }
+
 -- 2. Докажите, что предикат isEven разрешим.
 
-\func isEven (n : Nat) => \Sigma (k : Nat) (n = 2 * k)
+\func isEven (n : Nat) : \Type => \Sigma (k : Nat) (n = 2 * k)
 
-\func isEven-dec : DecPred isEven => {?}
+\func isNotEven-1 : isEven 1 -> Empty => \lam H =>
+  \case H.1 \as t, idp : H.1 = t \with {
+    | 0, p => contradiction (rewriteF p H.2)
+    | suc t, p => contradiction (rewriteF p H.2)
+  }
+
+\func isEvenStep {n : Nat} (H' : (isEven (suc (suc n)))) :
+  isEven n => \case H'.1 \as t, idp : H'.1 = t \with {
+  | 0, p => contradiction (rewriteF p H'.2)
+  | suc t, p => (t, pmap pred (pmap pred (rewriteF p H'.2)))
+}
+
+\func isEven-dec' (n : Nat) : Decide (isEven n) \elim n
+  | 0 => yes (0, idp)
+  | suc 0 => no (isNotEven-1)
+  | suc (suc n) => \case isEven-dec' n \with {
+    | yes (x, Hx) => yes (suc x, rewrite Hx idp)
+    | no Hx => no (\lam Hsucx => Hx (isEvenStep Hsucx))
+  }
+
+\func isEven-dec : DecPred isEven => isEven-dec'
 
 -- 3. Докажите, что если равенство элементов A разрешимо, то и равенство элементов List A тоже разрешимо.
 
+\func headOrD {A : \Type} (d : A) (xs : List A)  : A \elim xs
+  | nil => d
+  | cons x xs => x
+
+\func tail {A : \Type} (xs : List A) : List A \elim xs
+  | nil => nil
+  | cons a xs => xs
+
+\func listDecideEq {A : \Type} (dec : Eq A) (xs ys : List A) : Decide (xs = ys) \elim xs, ys
+  | nil, nil => yes idp
+  | nil, cons _ _ => no (\case __ \with {})
+  | cons _ _ , nil => no (\case __ \with {})
+  | cons x xs, cons y ys => \case decideEq x y \with {
+      | yes Hy => \case listDecideEq dec xs ys \with {
+        | yes Hyy => yes (rewrite Hy (rewrite Hyy idp))
+        | no Hyn => no (\lam Hyy => Hyn (pmap tail Hyy))
+      }
+      | no Hn => no (\lam Hy => Hn (pmap (headOrD x) Hy))
+  }
+
 \instance ListEq {A : \Type} (dec : Eq A) : Eq (List A)
-  | decideEq => {?}
+  | decideEq => \lam xs ys => listDecideEq dec xs ys
 
 -- 4. Докажите, что функции FromBoolToDec и FromDecToBool взаимно обратны.
 
-\func bdb {A : \Type} (p : A -> Bool) : FromDecToBool (FromBoolToDec p) = p => {?}
+\func bdb {A : \Type} (p : A -> Bool) : FromDecToBool (FromBoolToDec p) = p => funExt (\lam _ => Bool)
+    (\lam a => mcases \with {
+      | yes Hy => \case p a \as t, idp : p a = t \with {
+        | true, Hp => sym Hp
+        | false, Hp => run {
+          unfold FromBoolToDec at Hy,
+          rewriteF Hp at Hy,
+          absurd Hy
+        }
+      }
+      | no Hn => \case p a \as t, idp : p a = t \with {
+        | true, Hp => absurd (Hn (unfold FromBoolToDec (rewrite Hp ())))
+        | false, Hp => sym Hp
+      }
+    })
 
 -- Мы не можем доказать, что FromBoolToDec (FromDecToBool P) = P, но мы можем доказать более слабое утверждение: эти предикаты логически эквивалентны.
 -- Для этого введем эквивалентность предикатов.
 
+\func dbdComplete {A : \Type} (P : \Sigma (P : A -> \Type) (DecPred P)) (x : A)
+  : (FromBoolToDec (FromDecToBool P)).1 x -> P.1 x
+  => \lam H => run {
+    unfold FromBoolToDec at H,
+    unfold FromDecToBool at H,
+    \case P.2 x \as t, idp : P.2 x = t \with {
+      | yes Hy, Hp => Hy
+      | no Hn, Hp => contradiction (rewriteF Hp H)
+    }
+  }
+
+\func dbdCorrect {A : \Type} (P : \Sigma (P : A -> \Type) (DecPred P)) (x : A)
+  : P.1 x -> (FromBoolToDec (FromDecToBool P)).1 x
+  => \lam H => run {
+    unfold FromBoolToDec,
+    unfold FromDecToBool,
+    \case P.2 x \as t, idp : P.2 x = t \with {
+      | yes Hy, Hp => rewrite Hp ()
+      | no Hn, Hp => rewrite Hp (Hn H)
+    }
+  }
+
 \func dbd {A : \Type} (P : \Sigma (P : A -> \Type) (DecPred P))
   : \Pi (x : A) -> (FromBoolToDec (FromDecToBool P)).1 x <-> P.1 x
-  => {?}
+  => \lam x => (dbdComplete P x, dbdCorrect P x)
