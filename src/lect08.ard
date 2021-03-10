@@ -437,9 +437,34 @@ eval t str = case str t of
 \func typeableInterpId {V : \Type} (ctx : V -> Type) (t : Term V) (T : Type) (p : hasType ctx t T) : Interp T t
   => transport (Interp T) (>>=-right t) (typeableInterp ctx var (\lam v => neutralInterp (ctx v) varNeutral) t p)
 
+\func unitAcc {V : \Type} : Acc (Red1 {V}) unit => acc (\lam a' r => \case r)
+
 -- Это более общее утверждение необходимо для усиления индукционной гипотезы.
 -- Без доказательства.
 \func typeableInterp {V : \Type} (ctx : V -> Type) (env : V -> Term V)
                      (C : \Pi (v : V) -> Interp (ctx v) (env v)) (t : Term V) {T : Type} (p : hasType ctx t T)
   : Interp T (t >>= env)
-  => {?}
+  \elim t, T, p
+    | unit, Unit, unitType => unitAcc
+    | var v, T, varType p => run {
+      rewriteI p,
+      C v
+    }
+    | app f a, B, appType p1 p2 => run {
+      \let manualUnfold : ((app f a) TermMonad.>>= env) = (app (f >>= env) (a >>= env)) => idp \in run {
+        rewrite manualUnfold,
+        \let H => typeableInterp ctx env C a p1 \in
+        (typeableInterp ctx env C f p2) (a TermMonad.>>= env) H
+      }
+    }
+    | lam t, Arr A B, lamType p
+      => {?} -- sad
+--      => \let H => typeableInterp (maybe A ctx) (liftM env) (
+--        \lam u => \case \elim u \with {
+--          | nothing => neutralInterp A (varNeutral)
+--          | just a => unfold liftM ( env a (C a))
+--        }
+--      ) t p \in
+--         {?}
+----      \lam a Ia
+----          {?}
