@@ -1,6 +1,16 @@
+\import Logic.Meta
+\import Meta
+\import Order.LinearOrder
+\import Paths (pmap2, transportInv)
+\import Paths.Meta
+\import Set (==)
+\import hw07 (tail)
+\import lect04 (J')
 \import lect07
 \import lect09
+\import Arith.Nat
 \import Utils \hiding (<=-refl)
+\open Nat
 
 -- 1. Пусть f : A -> B и g : B -> C ─ некоторые функции.
 --    Докажите, что если f и g инъективны, то g `o` f также инъективна.
@@ -9,22 +19,44 @@
 -- Композиция функций
 \func \fixr 9 o {A B C : \Type} (g : B -> C) (f : A -> B) => \lam a => g (f a)
 
-\func o-inj {A B C : \Type} (f : A -> B) (g : B -> C) (p : isInj f) (q : isInj g) : isInj (g `o` f) => {?}
+\func o-inj {A B C : \Type} (f : A -> B) (g : B -> C) (p : isInj f) (q : isInj g)
+  : isInj (g `o` f)
+  => \lam a a' Heq =>
+    \let H => (q _ _ Heq) \in
+    p _ _ H
 
-\func o-inj' {A B C : \Type} (f : A -> B) (g : B -> C) (p : isInj (g `o` f)) : isInj f => {?}
+\func o-inj' {A B C : \Type} (f : A -> B) (g : B -> C) (p : isInj (g `o` f))
+  : isInj f
+  => \lam a a' Heq => \let H => pmap g Heq \in (p _ _ H)
 
 -- 2. Определите предикат "делится на 3 или на 5" так, чтобы он возвращал утверждения.
 --    Докажите, что MultipleOf3Or5 вкладывается в ℕ.
 
-\func isMultipleOf3Or5 (n : Nat) : \Type => {?}
+\func isMultipleOf3Or5 (n : Nat) : \Type => Either
+    (\Sigma (n `mod` 3 = {Nat} 0) ((n `mod` 5 = {Nat} 0) -> Empty))
+    (n `mod` 5 = {Nat} 0)
 
-\func isMultipleOf3Or5-isProp (n : Nat) : isProp (isMultipleOf3Or5 n) => {?}
+\func Nat-is-set : isSet Nat => Dec-isSet decideEq
+
+\func isMultipleOf3Or5-isProp (n : Nat) : isProp (isMultipleOf3Or5 n)
+  => \lam x y => \case \elim x, \elim y \with {
+    | Either.inl Hx, Either.inl Hy
+    => pmap Either.inl ((Sigma-isProp
+          (equality-isProp {Nat} Nat-is-set (n `mod` 3) 0)
+          (Impl-isProp Empty-isProp)) Hx Hy)
+    | Either.inl Hx, Either.inr Hy => absurd (Hx.2 Hy)
+    | Either.inr Hx, Either.inl Hy => absurd (Hy.2 Hx)
+    | Either.inr Hx, Either.inr Hy => pmap Either.inr ((equality-isProp {Nat} Nat-is-set (n `mod` 5) 0) Hx Hy)
+  }
 
 \func MultipleOf3Or5 => \Sigma (n : Nat) (isMultipleOf3Or5 n)
 
 \func Mul-inc (m : MultipleOf3Or5) => m.1
 
-\func Mul-inc-isInj : isInj Mul-inc => {?}
+\func Mul-inc-isInj : isInj Mul-inc => \lam a a' p => ext (p, run {
+  \let Hp => transport isMultipleOf3Or5 p a.2 \in
+  \let Hq => a'.2 \in isMultipleOf3Or5-isProp a'.1 _ _
+})
 
 -- 3. Мы будем говорить, что тип A тривиален, если существует элемент в A, такой что любой другой элемент в A равен ему.
 --    Докажите, что тип A тривиален тогда и только тогда, когда A является утверждением и A населен.
@@ -33,11 +65,15 @@
 
 \func \infix 1 <-> (A B : \Type) => \Sigma (A -> B) (B -> A)
 
-\func isTriv-lem (A : \Type) : isTriv A <-> (\Sigma (isProp A) A) => {?}
+\func isTriv-lem (A : \Type) : isTriv A <-> (\Sigma (isProp A) A) =>
+  (\lam H => (\lam x y => rewriteI H.2 (rewriteI (H.2 y) idp), H.1),
+   \lam H => (H.2, \lam a' => H.1 H.2 a'))
 
 -- 4. Докажите, что Either не является утверждением в общем случаем.
 
-\func Either-isProp (p : \Pi {A B : \Type} (pA : isProp A) (pB : isProp B) -> isProp (Either A B)) : Empty => {?}
+\func Either-isProp (p : \Pi {A B : \Type} (pA : isProp A) (pB : isProp B) -> isProp (Either A B))
+  : Empty
+  => \let H => p Unit-isProp Unit-isProp \in contradiction (H (Either.inl ()) (Either.inr ()))
 
 -- 5. Докажите, что LessOrEq является предикатом.
 
@@ -45,7 +81,11 @@
   | 0, m => z<=n
   | suc n, suc m => s<=s (LessOrEq n m)
 
-\func LessOrEq-isProp {n m : Nat} : isProp (LessOrEq n m) => {?}
+\func LessOrEq-isProp-real {n m : Nat} (x y : LessOrEq n m) : x = y
+  | {0}, z<=n, z<=n => idp
+  | {suc n}, {suc m}, s<=s x, s<=s y => rewrite (LessOrEq-isProp-real x y) idp
+
+\func LessOrEq-isProp {n m : Nat} : isProp (LessOrEq n m) => LessOrEq-isProp-real
 
 -- 6. Докажте, что ReflClosure LessOrEq не является предикатом, а ReflClosure (\lam x y => T (x < y)) является.
 
@@ -54,22 +94,156 @@
   | 0, suc _ => true
   | suc n, suc m => n < m
 
+\func <-norefl (n : Nat) : n < n = false
+  | 0 => idp
+  | suc n => <-norefl n
+
+\func \infix 4 <= (n m : Nat) : Bool
+  | 0, _ => true
+  | suc n, 0 => false
+  | suc n, suc m => n <= m
+
+\func <=-refl (n : Nat) : n <= n = true
+  | 0 => idp
+  | suc n => <=-refl n
+
+\func <=_<_= (n m : Nat) (Hle : n <= m = true) (Hl : n < m = false) : n = m \elim n, m
+  | 0, 0 => idp
+  | 0, suc m => contradiction Hl
+  | suc n, 0 => contradiction Hle
+  | suc n, suc m => pmap suc (<=_<_= n m Hle Hl)
+
 \data ReflClosure (R : Nat -> Nat -> \Type) (x y : Nat)
   | refl (x = y)
   | inc (R x y)
 
-\func ReflClosure_<-isProp (n m : Nat) : isProp (ReflClosure (\lam x y => T (x < y)) n m) => {?}
+\func ReflClosure_<-isProp (n m : Nat) : isProp (ReflClosure (\lam x y => T (x < y)) n m)
+  => retract'-isProp {ReflClosure (\lam x y => T (x < y)) n m} {n <= m = true}
+      (Bool-is-set (n <= m) true)
+      (\lam p => \case (n < m) \as t, idp : n < m = t \with {
+        | true, Heq => inc (rewrite Heq ())
+        | false, Heq => refl (<=_<_= n m p Heq)
+      } )
+      (\lam H => \case \elim H \with {
+        | refl p => \case \elim m, \elim p \with {
+          m, idp => (<=-refl n, \case (n < n) \as t, idp : n < n = t \with {
+            | true, Heq => {?}
+            | false, Heq => {?}
+          })
+        }
+        | inc r => {?}
+      })
 
 \func ReflClosure_<=-isNotProp (p : \Pi (n m : Nat) -> isProp (ReflClosure LessOrEq n m)) : Empty => {?}
 
 -- 7. Докажите, что если тип A вкладывается в тип B и B является утверждением, то и A является утверждением.
 
-\func sub-isProp {A B : \Type} (f : A -> B) (p : isInj f) (q : isProp B) : isProp A => {?}
+\func sub-isProp {A B : \Type} (f : A -> B) (p : isInj f) (q : isProp B)
+  : isProp A
+  => \lam x y =>
+      \let fx => f x \in
+      \let fy => f y \in
+      \let H => q fx fy \in
+      p _ _ H
 
 -- 8. Докажите, что тип с разрешимым равенством являетя множеством.
 
-\func Dec-isSet {A : \Type} (dec : \Pi (x y : A) -> Decide (x = y)) : isSet A
+--\func DecEqToBool {A : \Type} (dec : \Pi (x y : A) -> Decide (x = y)) :
+--  \Pi (x y : A) -> Bool
+--  => \lam x y => \case dec x y \with {
+--    | yes _ => true
+--    | no _ => false
+--  }
+
+--\func Dec-isSet'' {A : \Type} (dec : \Pi (x y : A) -> Bool) (a a' : A) : isProp (a = a')
+--  => retract'-isProp {a = a'} {dec a a' = true}
+--      (Bool-is-set _ _)
+--      (\lam p => \case dec a a' \as t, idp : dec a a' = t \with {
+--        | true, _ => {?}
+--        | false, Heq => run {
+--          rewrite p at Heq,
+--          contradiction Heq
+--        }
+--      })
+--      {?}
+--
+--\func apd {A : \Type} (P : A -> \Type) (f : \Pi (x : A) -> P (x)) {x y : A} (p : x = y)
+--  : transport P p (f x) = f y
+--  \elim y, p
+--    | y, idp => idp
+--
+--\func R {A : \Type} (dec : \Pi (x y : A) -> Decide (x = y)) (x y : A)
+--  : \Type
+--  => \case dec x y \with {
+--    | yes _ => \Sigma
+--    | no _ => Empty
+--  }
+--
+--\func R-isProp {A : \Type} (dec : \Pi (x y : A) -> Decide (x = y)) (x y : A) : isProp (R dec x y)
+--  => \lam p q => run {
+--    {?}
+--  }
+--
+--  \func R-to-Id {A : \Type} (dec : \Pi (x y : A) -> Decide (x = y)) (x y : A) (r : R dec x y) : x = y
+--  => \case dec x y \as t, idp : dec x y = t \with {
+--    | yes a, _ => a
+--    | no H, p => run {
+--      unfold R at r,
+--      rewrite p at r,
+--      absurd r
+--    }
+--  }
+--
+--\func R-refl {A : \Type} (dec : \Pi (x y : A) -> Decide (x = y)) (x : A) : R dec x x
+--  => \case dec x x \as t, idp : dec x x = t \with {
+--    | yes a, p => run {
+--      unfold R,
+--      rewrite p,
+--      ()
+--    }
+--    | no H, _ => absurd (H idp)
+--  }
+--
+--\func keklemma {T : \Type } {A B : T -> \Type} {x y : T} (p : x = y) (f : A x -> B x) (g : A y -> B y)
+--  (H : transport (\lam i => A i -> B i) p f = g)
+--  : \Pi (a : A x) -> transport (\lam i => B i) p (f a) = g (transport (\lam i => A i) p a)
+--  \elim p
+--    | idp => rewrite H (\lam _ => idp)
+--
+----        transport (\lam y => R dec x y -> x = y) p (R-to-Id dec x x) = R-to-Id dec x x
+--
+--\func Dec-isSet' {A : \Type} (dec : \Pi (x y : A) -> Decide (x = y)) (x y : A) : isProp (x = y)
+--  => \lam p => \case \elim y, \elim p \with {
+--    | y, idp => \lam p => \case dec x x \as t, idp : dec x x = t \with {
+--      | yes prefl, Heq =>
+--        \let apdp => apd (\lam (y : A) => (R dec x y) -> x = y) (R-to-Id dec x) p \in
+--        \let r : R dec x x => R-refl dec x \in
+--        \let kekinstance
+--             => keklemma {_} {\lam y => R dec x y} {\lam y => x = y} p (R-to-Id dec x x) (R-to-Id dec x x) \in
+--        \let anotherkek => kekinstance apdp r \in
+--        \let blah : transport (R dec x) p r = r => R-isProp dec _ _ _ _ \in run {
+--          rewrite blah at anotherkek,
+----          rewrite Heq at anotherkek,
+--          {?}
+--        }
+--      | no H, _ => absurd (H p)
+--    }
+----      \let apdp => apd (\lam (y : A) => (R dec x y) -> x = y) (R-to-Id dec x) p \in
+----      \let r : R dec x x => R-refl dec x \in
+----      \let kekinstance
+----           => keklemma {_} {\lam y => R dec x y} {\lam y => x = y} p (R-to-Id dec x x) (R-to-Id dec x x) \in
+----        \let anotherkek => kekinstance apdp r \in
+----        \let blah : transport (R dec x) p r = r => R-isProp dec _ _ _ _ \in run {
+----          rewrite blah at anotherkek,
+----          {?}
+----        }
+--  }
+
+\func Dec-isSet' {A : \Type} (dec : \Pi (x y : A) -> Decide (x = y)) (x y : A) : isProp (x = y)
   => {?}
+
+\func Dec-isSet {A : \Type} (dec : \Pi (x y : A) -> Decide (x = y)) : isSet A
+  => \lam a a' => Dec-isSet' dec a a'
 
 -- 9. Если A и B являются множествами, то A `Or` B тоже является множеством.
 
@@ -77,16 +251,206 @@
   | inl A
   | inr B
 
-\func or-isSet {A B : \Type} (p : isSet A) (q : isSet B) : isSet (Or A B) => {?}
+\func projMA {A B : \Type} (x : Or A B) : Maybe A
+  \elim x
+  | inl a => just a
+  | inr b => nothing
+
+\func projMB {A B : \Type} (x : Or A B) : Maybe B
+\elim x
+  | inl a => nothing
+  | inr b => just b
+
+\func elimLorDef {A B : \Type} (def : A) (x : Or A B) : A
+  \elim x
+    | inl a => a
+    | inr b => def
+
+\func elimRorDef {A B : \Type} (def : B) (x : Or A B) : B
+  \elim x
+    | inl a => def
+    | inr b => b
+
+\func unjust {A : \Type} (def : A) (a : Maybe A) : A
+  \elim a
+    | nothing => def
+    | just a => a
+
+\func isNothing {A : \Type} (a : Maybe A) : Bool
+  \elim a
+    | nothing => true
+    | just _ => false
+
+\func decideBool (x y : Bool) : Decide (x = y)
+  | true, true => yes idp
+  | true, false => no (\lam p => contradiction p)
+  | false, true => no (\lam p => contradiction p)
+  | false, false => yes idp
+
+\func Bool-is-set : isSet Bool
+  => Dec-isSet decideBool
+
+\func maybe-is-set {A : \Type} (H : isSet A) : isSet (Maybe A)
+  => \lam a a' => retract'-isProp {a = a'}
+      {\Sigma (isNothing a = isNothing a') (\Pi (def : A) -> unjust def a = unjust def a')}
+      (Sigma-isProp (Bool-is-set (isNothing a) (isNothing a'))
+          (forall-isProp (\lam def => unjust def a = unjust def a')
+              (\lam def => H (unjust def a) (unjust def a'))))
+      (\lam p => \case a \as t, a' \as t', idp : a = t, idp : a' = t' \with {
+        | nothing, nothing, Hp, Hq => run {
+          rewrite Hp,
+          rewrite Hq,
+          idp
+        }
+        | nothing, just g, Hp, Hq => run {
+          rewrite Hp at p,
+          rewrite Hq at p,
+          contradiction p.1
+        }
+        | just f, nothing, Hp, Hq => run {
+          rewrite Hp at p,
+          rewrite Hq at p,
+          contradiction p.1
+        }
+        | just f, just g, Hp, Hq => run {
+          rewrite Hp,
+          rewrite Hq,
+          rewrite Hp at p,
+          rewrite Hq at p,
+          pmap just (p.2 f)
+        }
+      })
+      (\lam x => (run {
+        rewrite x,
+        (idp, \lam _ => idp)
+        },
+        \case \elim a', \elim x \with {
+                    | a', idp => \case \elim a, \elim a' \with {
+                      | nothing, nothing => idp
+                      | nothing, just a => idp
+                      | just a, nothing => idp
+                      | just a, just a1 => idp
+                    }
+                  }))
+
+
+\func or-isSet' {A B : \Type} (p : isSet A) (q : isSet B) {a a' : Or A B} : isProp (a = a')
+  => retract'-isProp {a = a'} {\Sigma (projMA a = projMA a') (projMB a = projMB a')}
+      (Sigma-isProp
+        ((maybe-is-set p) (projMA a) (projMA a'))
+        ((maybe-is-set q) (projMB a) (projMB a')))
+      (\lam Hp => \case a \as t, a' \as t', idp : a = t, idp : a' = t' \with {
+        | inl f, inl g, Heqa, Heqa' => run {
+          rewrite Heqa at Hp,
+          rewrite Heqa' at Hp,
+          rewrite Heqa,
+          rewrite Heqa',
+          pmap inl (pmap (unjust f) Hp.1)
+        }
+        | inl f, inr g, Heqa, Heqa' => run {
+          rewrite Heqa at Hp,
+          rewrite Heqa' at Hp,
+          contradiction Hp.1
+        }
+        | inr f, inl g, Heqa, Heqa' => run {
+          rewrite Heqa at Hp,
+          rewrite Heqa' at Hp,
+          contradiction Hp.1
+        }
+        | inr f, inr g, Heqa, Heqa' => run {
+          rewrite Heqa at Hp,
+          rewrite Heqa' at Hp,
+          rewrite Heqa,
+          rewrite Heqa',
+          pmap inr (pmap (unjust f) Hp.2)
+        }
+      })
+      (\lam x => \case \elim a', \elim x \with {
+        | a', idp => ((idp, idp) , \case \elim a, \elim a' \with {
+          | inl a, inl a1 => idp
+          | inl a, inr b => idp
+          | inr b, inl a => idp
+          | inr b, inr b1 => idp
+        })
+      })
+
+\func or-isSet {A B : \Type} (p : isSet A) (q : isSet B)
+  : isSet (Or A B)
+  => \lam f g => or-isSet' p q
 
 -- 10. Если B x является множеством, то \Pi (x : A) -> B x тоже является множеством.
 
-\func pi-isSet {A : \Type} (B : A -> \Type) (p : \Pi (x : A) -> isSet (B x)) : isSet (\Pi (x : A) -> B x) => {?}
+\func pi-isSet {A : \Type} (B : A -> \Type) (p : \Pi (x : A) -> isSet (B x))
+  : isSet (\Pi (x : A) -> B x)
+  => \lam f g => retract'-isProp {f = g} {\Pi (a : A) -> f a = g a}
+      (forall-isProp (\lam a => f a = g a) (\lam x => (p x) (f x) (g x)))
+      (\lam H => ext H)
+      (\lam H => \case \elim g, \elim H \with {
+        | g, idp => (\lam _ => idp, idp)
+      })
 
 -- 11. Докажите, что если A является множеством, то List A также им является.
 
-\func List-isSet {A : \Type} (pA : isSet A) : isSet (List A)
-  => {?}
+\func atIndex {A : \Type} (xs : List A) (n : Nat) : Maybe A
+  | nil, _ => nothing
+  | cons a _, 0 => just a
+  | cons _ xs, suc n => atIndex xs n
+
+\func nilidp {A : \Type} : \Sigma (xs : List A) (nil = xs) => (nil, idp)
+
+\func eqNilProp {A : \Type} : isProp (\Sigma (xs : List A) (nil = xs))
+  => \lam x y =>
+      J' (\lam p => p = y)
+         (J' (\lam (p : \Sigma (xs : List A) (nil = xs)) => (nilidp = p)) idp y)
+         x
+
+
+\func consEq {A : \Type} {x y : A} {xs ys : List A} (Hx : x = y) (Hxs : xs = ys)
+  : cons x xs = cons y ys
+  => run {
+    rewrite Hx,
+    rewrite Hxs,
+    idp
+  }
+
+\func isNil {A : \Type} (xs : List A) : Bool
+  \elim xs
+    | nil => true
+    | cons _ _ => false
+
+\func List-isSet' {A : \Type} (pA : isSet A) (xs ys : List A)
+  : isProp (xs = ys)
+\elim xs
+  | nil => retract'-isProp {nil = ys} {isNil ys = true}
+    (Bool-is-set (isNil ys) (true))
+    (\lam p => \case \elim ys, p \with {
+      | nil, _ => idp
+      | cons a l, p => contradiction p
+    })
+    (\lam p => \case \elim ys, \elim p \with {
+      | ys, idp => (idp, idp)
+    })
+  | cons x xs => retract'-isProp {cons x xs = ys}
+      {\Sigma (\Sigma (isNil ys = false) (\Pi (def : A) -> x = headDef def ys)) (xs = tail ys)}
+    (Sigma-isProp
+        (Sigma-isProp (Bool-is-set (isNil ys) (false)) (forall-isProp
+            (\lam (def : A) => x = headDef {A} def ys) (\lam def => pA x (headDef def ys))))
+        (List-isSet' pA xs (tail ys)))
+    (\lam p => \case \elim ys, p \with {
+      | nil, p' => contradiction p'.1.1
+      | cons y ys, p' => run {
+        rewrite (p'.1.2 y),
+        rewrite p'.2,
+        idp
+      }
+    })
+    (\lam p => \case \elim ys, \elim p \with {
+      | ys, idp => (((idp, \lam _ => idp), idp), idp)
+    })
+
+\func List-isSet {A : \Type} (pA : isSet A)
+  : isSet (List A)
+  => \lam f g => List-isSet' pA f g
 
 -- Optional:
 -- 12. Докажите, что n-типы замкнуты относительно образования \Pi-типов.
